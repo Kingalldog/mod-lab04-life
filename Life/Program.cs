@@ -4,6 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
+using System.IO;
+using System.Text.Json;
+using Newtonsoft.Json;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace cli_life
 {
@@ -35,7 +40,7 @@ namespace cli_life
         public int Width { get { return Columns * CellSize; } }
         public int Height { get { return Rows * CellSize; } }
 
-        public Board(int width, int height, int cellSize, double liveDensity = .1)
+        public Board(int width, int height, int cellSize, double liveDensity = .5)
         {
             CellSize = cellSize;
 
@@ -46,6 +51,19 @@ namespace cli_life
 
             ConnectNeighbors();
             Randomize(liveDensity);
+        }
+
+        public Board(GameSettings settings)
+        {
+            CellSize = settings.CellSize;
+
+            Cells = new Cell[settings.Width / settings.CellSize, settings.Height / settings.CellSize];
+            for (int x = 0; x < Columns; x++)
+                for (int y = 0; y < Rows; y++)
+                    Cells[x, y] = new Cell();
+
+            ConnectNeighbors();
+            Randomize(settings.LiveDensity);
         }
 
         readonly Random rand = new Random();
@@ -85,17 +103,77 @@ namespace cli_life
                 }
             }
         }
+
+        public void SaveToFile(string filename)
+        {
+            using (StreamWriter writer = new StreamWriter(filename))
+            {
+                writer.Write(Height);
+                writer.Write(' ');
+                writer.Write(Width);
+                writer.Write(' ');
+                writer.Write(CellSize);
+                writer.Write('\n');
+                for (int x = 0; x < Rows; x++)
+                {
+                    for (int y = 0; y < Columns; y++)
+                    {
+                        writer.Write(Cells[y, x].IsAlive ? '1' : '0');
+                    }
+                    writer.Write('\n');
+                }
+            }
+        }
+
+    }
+    public class GameSettings
+    {
+        public int Width { get; set; } = 50;
+        public int Height { get; set; } = 20;
+        public int CellSize { get; set; } = 1;
+        public double LiveDensity { get; set; } = 0.5;
+        public int Delay { get; set; } = 1000;
     }
     class Program
     {
         static Board board;
-        static private void Reset()
+        static private int Delay;
+
+        static private Board LoadFromFile(string filename)
         {
-            board = new Board(
-                width: 50,
-                height: 20,
-                cellSize: 1,
-                liveDensity: 0.5);
+            using (StreamReader reader = new StreamReader(filename))
+            {
+                var str = reader.ReadLine().Split(' ');
+                int rows = int.Parse(str[0]);
+                int cols = int.Parse(str[1]);
+                int cellSize = int.Parse(str[2]);
+                Board board = new Board(cols * cellSize, rows * cellSize, cellSize);
+
+                for (int y = 0; y < rows; y++)
+                {
+                    string line = reader.ReadLine();
+                    for (int x = 0; x < cols; x++)
+                    {
+                        board.Cells[x, y].IsAlive = line[x] == '1';
+                    }
+                }
+                return board;
+            }
+
+        }
+        static private void Reset(string configPath, string loadPath, bool newRunning = true)
+        {
+            using (StreamReader r = new StreamReader(configPath))
+            {
+                string json = r.ReadToEnd();
+                GameSettings settings = JsonConvert.DeserializeObject<GameSettings>(json);
+                if (newRunning) {
+                    board = new Board(settings);
+                } else {
+                    board = LoadFromFile(loadPath);
+                }
+                Delay = settings.Delay;
+            }
         }
         static void Render()
         {
@@ -118,14 +196,21 @@ namespace cli_life
         }
         static void Main(string[] args)
         {
-            Reset();
-            while(true)
+            string projectDirectory = Directory.GetParent(Environment.CurrentDirectory).Parent.Parent.FullName;
+            string configPath = Path.Combine(projectDirectory, "config.json");
+            string filePath = Path.Combine(projectDirectory, "board.txt");
+            string patternPath = Path.Combine(projectDirectory, "patterns/2.txt");
+            Reset(configPath, patternPath, false);
+
+            int cnt = 0;
+            while(++cnt < 100)
             {
                 Console.Clear();
                 Render();
                 board.Advance();
-                Thread.Sleep(1000);
+                Thread.Sleep(Delay);
             }
+            board.SaveToFile(filePath);
         }
     }
 }
