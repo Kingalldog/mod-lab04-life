@@ -22,7 +22,7 @@ namespace cli_life
     {
         public bool IsAlive;
         public readonly List<Cell> neighbors = new List<Cell>();
-        private bool IsAliveNext;
+        public bool IsAliveNext;
         public void DetermineNextLiveState()
         {
             int liveNeighbors = neighbors.Where(x => x.IsAlive).Count();
@@ -115,38 +115,51 @@ namespace cli_life
 
         public void SaveToFile(string filename)
         {
-            using (StreamWriter writer = new StreamWriter(filename))
+            if (System.IO.File.Exists(filename))
             {
-                writer.Write(Height);
-                writer.Write(' ');
-                writer.Write(Width);
-                writer.Write(' ');
-                writer.Write(CellSize);
-                writer.Write('\n');
-                for (int x = 0; x < Rows; x++)
+                using (StreamWriter writer = new StreamWriter(filename))
                 {
-                    for (int y = 0; y < Columns; y++)
-                    {
-                        writer.Write(Cells[y, x].IsAlive ? '1' : '0');
-                    }
+                    writer.Write(Height);
+                    writer.Write(' ');
+                    writer.Write(Width);
+                    writer.Write(' ');
+                    writer.Write(CellSize);
                     writer.Write('\n');
+                    for (int x = 0; x < Rows; x++)
+                    {
+                        for (int y = 0; y < Columns; y++)
+                        {
+                            writer.Write(Cells[y, x].IsAlive ? '1' : '0');
+                        }
+                        writer.Write('\n');
+                    }
                 }
+            }
+            else
+            {
+                throw new Exception($"File {filename} not found");
             }
         }
 
         public void LoadPattern(string fileName, int offsetX = 0, int offsetY = 0)
         {
-            int yLen = Cells.Length / Cells.GetLength(0);
-            int xLen = Cells.GetLength(0);
-            string[] lines = File.ReadAllLines(fileName);
-            for (int y = 0; y < Math.Min(lines.Length, yLen); y++)
+            if (System.IO.File.Exists(fileName))
             {
-                for (int x = 0; x < Math.Min(lines[y].Length, xLen); x++)
+                int yLen = Cells.Length / Cells.GetLength(0);
+                int xLen = Cells.GetLength(0);
+                string[] lines = File.ReadAllLines(fileName);
+                for (int y = 0; y < Math.Min(lines.Length, yLen); y++)
                 {
-                    int targetX = (x + offsetX) % Columns;
-                    int targetY = (y + offsetY) % Rows;
-                    Cells[targetX, targetY].IsAlive = lines[y][x] == '1';
+                    for (int x = 0; x < Math.Min(lines[y].Length, xLen); x++)
+                    {
+                        int targetX = (x + offsetX) % Columns;
+                        int targetY = (y + offsetY) % Rows;
+                        Cells[targetX, targetY].IsAlive = lines[y][x] == '1';
+                    }
                 }
+            } else
+            {
+                throw new Exception($"File {fileName} not found");
             }
         }
 
@@ -531,7 +544,11 @@ namespace cli_life
                 Console.WriteLine("Посчитана статистика для плотности:" + dens.ToString());
             }
         }
+
+
     }
+
+
 
 
     class Program
@@ -542,7 +559,7 @@ namespace cli_life
         static int generation = 1;
         static int stableGeneration = 1;
 
-        static private Board LoadFromFile(string filename)
+        static public Board LoadFromFile(string filename)
         {
             using (StreamReader reader = new StreamReader(filename))
             {
@@ -564,6 +581,7 @@ namespace cli_life
             }
 
         }
+        
         static private void Reset(string configPath, string loadPath, bool newRunning = true)
         {
             using (StreamReader r = new StreamReader(configPath))
@@ -658,7 +676,8 @@ namespace cli_life
             string path = Path.Combine(projectDirectory, "dataForAll.txt");
             Reset(configPath, filePath, true);
 
-            board.LoadPattern(patternPath + "/train.txt");
+            //board.LoadPattern(patternPath + "/train.txt");
+            board.LoadPattern("pattern");
 
             while (generation < 100)
             {
@@ -687,8 +706,8 @@ namespace cli_life
         }
         static void Main(string[] args)
         {
-            //Start();
-            Statistics.CalcAndGet();
+            Start();
+            //Statistics.CalcAndGet();
         }
 
     }
